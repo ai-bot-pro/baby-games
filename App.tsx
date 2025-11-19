@@ -360,15 +360,21 @@ const App: React.FC = () => {
 
           {gameState === GameState.PLAYING && (
             <div className="flex flex-col justify-end min-h-0">
-              {messages.map((msg, index) => (
-                <ChatMessage 
-                  key={msg.id} 
-                  message={msg} 
-                  isLatest={index === messages.length - 1}
-                  isSpeaking={index === messages.length - 1 && isSpeaking}
-                />
-              ))}
-              {isLoading && messages[messages.length - 1]?.text === "" && (
+              {messages.map((msg, index) => {
+                // Logic to hide empty placeholder during loading state
+                if (isLoading && msg.role === 'model' && !msg.text && !msg.imageUrl && index === messages.length - 1) {
+                    return null;
+                }
+                return (
+                    <ChatMessage 
+                    key={msg.id} 
+                    message={msg} 
+                    isLatest={index === messages.length - 1}
+                    isSpeaking={index === messages.length - 1 && isSpeaking}
+                    />
+                );
+              })}
+              {isLoading && (!messages.length || messages[messages.length - 1]?.text === "") && (
                 <div className="flex w-full mb-6 justify-start animate-pulse">
                    <div className="flex max-w-[70%] flex-row items-end gap-2">
                     <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-orange-400 flex items-center justify-center text-2xl border-2 border-white">
