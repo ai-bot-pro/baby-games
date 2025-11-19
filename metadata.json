@@ -1,0 +1,7 @@
+{
+  "name": "猜猜看！单词小侦探",
+  "description": "一个互动式幼儿单词学习游戏，由AI扮演热情友好的点点老师，引导小朋友猜词语。",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
