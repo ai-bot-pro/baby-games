@@ -132,10 +132,31 @@ export const generateImage = async (prompt: string): Promise<string | null> => {
  */
 export const unlockAudioContext = async () => {
   if (!audioContext) {
-    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    // IMPORTANT: Do NOT pass options like {sampleRate} to the constructor.
+    // iOS Safari webkitAudioContext fails if options are passed.
+    // We let the browser choose the native sample rate (usually 44.1k or 48k)
+    // and our decodeAudioData function will handle the buffer creation correctly.
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    audioContext = new AudioContextClass();
   }
+
   if (audioContext.state === 'suspended') {
-    await audioContext.resume();
+    try {
+      await audioContext.resume();
+    } catch (e) {
+      console.error("Audio resume failed", e);
+    }
+  }
+
+  // Play a silent buffer to force the browser to unlock the audio thread
+  try {
+    const buffer = audioContext.createBuffer(1, 1, 22050);
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+    source.start(0);
+  } catch (e) {
+    console.error("Silent buffer unlock failed", e);
   }
 };
 
@@ -190,6 +211,9 @@ async function decodeAudioData(
 ): Promise<AudioBuffer> {
   const dataInt16 = new Int16Array(data.buffer);
   const frameCount = dataInt16.length / numChannels;
+  // Create a buffer with the SOURCE sample rate (24000).
+  // Even if the Context is 48000, this tells the context "this data is 24000".
+  // The context will automatically resample it during playback.
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
 
   for (let channel = 0; channel < numChannels; channel++) {
@@ -243,14 +267,18 @@ export const playTTS = (
     if (myId !== latestTTSId) return;
 
     try {
-      // Double check context is available (should be unlocked by user interaction already)
+      // Fallback initialization (mostly for desktop where autoplay is looser).
+      // For mobile, unlockAudioContext should have been called already.
       if (!audioContext) {
-        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        audioContext = new AudioContextClass();
       }
       if (audioContext.state === 'suspended') {
-        // Try to resume, though this might fail if not in user gesture stack. 
-        // Rely on unlockAudioContext being called upstream.
-        await audioContext.resume();
+        try {
+          await audioContext.resume();
+        } catch (e) {
+          // Ignore errors here, rely on unlock logic
+        }
       }
 
       // If we interrupted, or if queue was empty, reset time.
